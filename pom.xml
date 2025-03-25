@@ -11,8 +11,8 @@
     <groupId>com.tess</groupId>
     <artifactId>tesseract-api</artifactId>
     <version>0.0.1</version>
-    <name>tesseract-api</name>
-    <description>tesseract-api</description>
+    <name>tesseract_test-api</name>
+    <description>tesseract_test-api</description>
     <url/>
     <licenses>
         <license/>

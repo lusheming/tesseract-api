@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCR文字识别</title>
+    <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+
+        header {
+            height: 100px;
+            width: 100%;
+            background: #4CAF50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        header p {
+            font-size: 24px;
+            color: white;
+            font-weight: bold;
+        }
+
+        .core {
+            max-width: 1600px;
+            margin: 20px auto;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+        }
+
+        .source, .result, .annotated {
+            width: 31%;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .source img,
+        .annotated .image-container img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+        }
+
+        .source input[type="file"] {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .source input[type="file"]:hover {
+            background-color: #45a049;
+        }
+
+        .result textarea {
+            width: 100%;
+            height: 300px;
+            resize: none;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            font-size: 16px;
+            outline: none;
+        }
+
+        @media (max-width: 768px) {
+            .source, .result, .annotated {
+                width: 100%;
+            }
+        }
+
+        .loading {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 18px;
+            color: #666;
+        }
+
+        .error {
+            color: red;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        /* 带有坐标的图片样式 */
+        .annotated .image-container {
+            position: relative;
+            width: 100%;
+            max-height: 800px; /* 增加最大高度 */
+            overflow: hidden;
+        }
+
+        .annotated .text-overlay {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            font-size: 12px; /* 默认字体大小 */
+            padding: 2px 5px;
+            border-radius: 4px;
+            pointer-events: auto; /* 允许点击 */
+            user-select: text; /* 允许选择文本 */
+            white-space: nowrap;
+            transform-origin: top left; /* 确保缩放时位置正确 */
+        }
+    </style>
+</head>
+
+<body>
+<header>
+    <p>OCR文字识别</p>
+</header>
+<div class="core">
+    <!-- 图片上传区域 -->
+    <div class="source">
+        <img id="uploadedImage">
+        <input type="file" id="imageInput" accept="image/png,image/jpeg,image/jpg" onchange="uploadImage(this)">
+        <div id="loading" class="loading" style="display: none;">正在识别，请稍候...</div>
+        <div id="errorMessage" class="error" style="display: none;">无法识别图片，请重试。</div>
+    </div>
+
+    <!-- 带有坐标的图片 -->
+    <div class="annotated">
+        <div class="image-container">
+            <img id="annotatedImage" />
+        </div>
+    </div>
+
+    <!-- 识别结果 -->
+    <div class="result">
+        <textarea id="resultMsg" placeholder="识别结果将显示在这里..."></textarea>
+    </div>
+</div>
+
+<script>
+    // 监听图片输入字段的改变事件
+    document.getElementById('imageInput').addEventListener('change', function (e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            const loadingElement = document.getElementById('loading');
+            const errorElement = document.getElementById('errorMessage');
+
+            // 显示加载提示
+            loadingElement.style.display = 'block';
+            errorElement.style.display = 'none';
+
+            reader.onload = function (e) {
+                const image = new Image();
+                image.src = e.target.result;
+
+                image.onload = function () {
+                    // 预览图片
+                    const uploadedImage = document.getElementById('uploadedImage');
+                    uploadedImage.src = image.src;
+
+                    // 使用Tesseract.js进行文字识别
+                    Tesseract.recognize(
+                        image,
+                        'eng',
+                        {
+                            logger: info => console.log(info)
+                        }
+                    ).then(result => {
+                        console.log('【识别结果】', result);
+
+                        // 检查返回的数据结构
+                        if (!result || !result.data || !result.data.words) {
+                            console.error('【错误】识别结果数据结构异常');
+                            errorElement.style.display = 'block';
+                            return;
+                        }
+
+                        const words = result.data.words;
+                        console.log('【识别的文字块】', words);
+
+                        // 将识别结果文本输入到页面元素中
+                        document.getElementById('resultMsg').value = result.data.text || '';
+
+                        // 渲染带坐标的图片
+                        renderAnnotatedImage(image, words);
+                    }).catch(err => {
+                        console.error('【错误】识别失败:', err);
+                        errorElement.style.display = 'block';
+                    }).finally(() => {
+                        loadingElement.style.display = 'none';
+                    });
+                };
+            };
+
+            reader.readAsDataURL(file);
+        }
+    });
+
+    /**
+     * 渲染带有坐标的图片
+     * @param {HTMLImageElement} image - 原始图片
+     * @param {Array} words - Tesseract识别的文字块数组
+     */
+    function renderAnnotatedImage(image, words) {
+        const container = document.querySelector('.annotated .image-container');
+        const annotatedImage = document.getElementById('annotatedImage');
+
+        // 设置图片源
+        annotatedImage.src = image.src;
+
+        // 获取容器的实际宽度和图片的原始宽高
+        const containerWidth = container.offsetWidth;
+        const scale = Math.min(containerWidth / image.width, 800 / image.height); // 按比例缩放
+
+        // 设置图片的缩放尺寸
+        annotatedImage.style.width = `${image.width * scale}px`;
+        annotatedImage.style.height = `${image.height * scale}px`;
+
+        // 清空之前的文字块
+        container.innerHTML = '';
+        container.appendChild(annotatedImage);
+
+        // 遍历每个文字块，在图片上添加可选的文本
+        words.forEach((word, index) => {
+            const { bbox, text } = word;
+            if (!bbox || !text) {
+                console.warn(`【警告】第 ${index + 1} 个文字块数据缺失`, word);
+                return;
+            }
+
+            const { x0, y0 } = bbox;
+
+            // 创建一个可选的文本块
+            const textOverlay = document.createElement('div');
+            textOverlay.className = 'text-overlay';
+            textOverlay.textContent = text;
+
+            // 根据缩放比例调整文字块的位置和字体大小
+            textOverlay.style.left = `${x0 * scale}px`;
+            textOverlay.style.top = `${y0 * scale}px`;
+            textOverlay.style.fontSize = `${Math.max(12 * scale, 12)}px`; // 动态调整字体大小，最小为12px
+
+            // 添加到容器中
+            container.appendChild(textOverlay);
+        });
+    }
+</script>
+</body>
+
+</html>
